@@ -1,7 +1,7 @@
 {
-  "name": "@socket.io/sticky",
-  "version": "1.0.1",
-  "description": "An alternative to the sticky-session package (https://github.com/indutny/sticky-session)",
+  "name": "@infurnia/sticky",
+  "version": "1.0.10",
+  "description": "An experimental fork of the @socket.io/sticky, needed for debugging some issues",
   "main": "index.js",
   "scripts": {
     "format:check": "prettier --check \"index.js\" \"test/**/*.js\"",
@@ -15,9 +15,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/socketio/socket.io-sticky.git"
+    "url": "git+https://github.com/infurnia/socket.io-sticky.git"
   },
-  "homepage": "https://github.com/socketio/socket.io-sticky#readme",
+  "homepage": "https://github.com/infurnia/socket.io-sticky#readme",
   "devDependencies": {
     "mocha": "^8.2.1",
     "nyc": "^15.1.0",
@@ -30,5 +30,8 @@
     "websocket",
     "cluster",
     "node.js"
-  ]
+  ],
+  "dependencies": {
+    "winston": "^3.6.0"
+  }
 }

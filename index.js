@@ -1,5 +1,38 @@
 const cluster = require("cluster");
 
+//logging//
+const winston = require('winston');
+
+const options = {
+  file: {
+    level: 'info',
+    filename:  cluster.isMaster ? '/usr/src/app/master.log' : `/usr/src/app/worker_${cluster.worker.id}.log`,
+    handleExceptions: true,
+    json: true,
+    maxsize: 5242880, // 5MB
+    maxFiles: 5,
+    colorize: false,
+  },
+  console: {
+    level: 'debug',
+    handleExceptions: true,
+    json: false,
+    colorize: true,
+  },
+};
+
+const logger = winston.createLogger({
+  levels: winston.config.npm.levels,
+  transports: [
+    new winston.transports.File(options.file),
+    new winston.transports.Console(options.console)
+  ],
+  exitOnError: false
+})
+
+//logging end here//
+
+
 const setupMaster = (httpServer, opts) => {
   if (!cluster.isMaster) {
     throw new Error("not master");
@@ -18,13 +51,19 @@ const setupMaster = (httpServer, opts) => {
 
   const computeWorkerId = (data) => {
     const match = sidRegex.exec(data);
+    // logger.info(`in computeWorkerId before matching====> data:,`, JSON.stringify(data), `, match: `, match ? match[1] : match, `, sessionIdToWorker: `, sessionIdToWorker);
     if (match) {
       const sid = match[1];
       const workerId = sessionIdToWorker.get(sid);
+      // logger.info(`in computeWorkerId, match done 1: ====> sid: ${sid}, worker_id: ${workerId}, workder_ids: `, Object.keys(cluster.workers), `, sessionIdToWorker: `, sessionIdToWorker);
+      if (workerId && cluster.workers[workerId]) {
+        // logger.info(`in computeWorkerId, match done 2: ====> sid: ${sid}, worker_id: ${workerId}, workder_ids: `, Object.keys(cluster.workers), `, sessionIdToWorker: `, sessionIdToWorker);
+      }
       if (workerId && cluster.workers[workerId]) {
         return workerId;
       }
     }
+    // logger.info(`computeWorkerId ====> loadBalancingMethod: `, options.loadBalancingMethod, `, sessionIdToWorker: `, sessionIdToWorker);
     switch (options.loadBalancingMethod) {
       case "random": {
         const workerIds = Object.keys(cluster.workers);
@@ -58,15 +97,21 @@ const setupMaster = (httpServer, opts) => {
 
   httpServer.on("connection", (socket) => {
     socket.once("data", (buffer) => {
+      logger.info(`{isMaster: ${cluster.isMaster}} in connection data event, before socket.pause ====> socket_id: ${socket.id}`);
       socket.pause();
+      logger.info(`{isMaster: ${cluster.isMaster}} in connection data event, after socket.pause ====> socket_id: ${socket.id}`);
       const data = buffer.toString();
+      logger.info(`{isMaster: ${cluster.isMaster}} in connection data event, after socket.pause ====> socket_id: ${socket ? socket.id : 'none'}, data: `, JSON.stringify(data));
       const workerId = computeWorkerId(data);
+      logger.info(`{isMaster: ${cluster.isMaster}} in connection data event, after socket.pause ====> socket_id: ${socket ? socket.id : 'none'}, worker_id (from computeWorkerId): ${workerId}`);
       cluster.workers[workerId].send(
         { type: "sticky:connection", data },
         socket,
         (err) => {
           if (err) {
+            logger.info(`{isMaster: ${cluster.isMaster}} in connection data event, ERROR, before socket.destroy ====> socket_id: ${socket ? socket.id : 'none'}`, err);
             socket.destroy();
+            logger.info(`{isMaster: ${cluster.isMaster}} in connection data event, ERROR, after socket.destroy ====> socket_id: ${socket ? socket.id : 'none'}`, err);
           }
         }
       );
@@ -96,7 +141,8 @@ const setupWorker = (io) => {
     throw new Error("not worker");
   }
 
-  process.on("message", ({ type, data }, socket) => {
+  process.on("message", ({ type, data }, socket) => {//from master to worker
+    logger.info(`{ worker_id: ${cluster.worker.id} } received message ====> type: ${type}, socket_id: ${socket.id}, data: `, JSON.stringify(data));
     switch (type) {
       case "sticky:connection":
         if (!socket) {
